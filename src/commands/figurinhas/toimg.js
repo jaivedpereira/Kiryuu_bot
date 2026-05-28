@@ -1,5 +1,36 @@
-const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
 const { downloadBuffer } = require('../../lib/media');
+const config = require('../../config');
+
+// Converte WebP -> PNG via ffmpeg para nao depender de libs nativas.
+function webpToPng(buffer) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(config.tmpFolder)) {
+      fs.mkdirSync(config.tmpFolder, { recursive: true });
+    }
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const inputPath = path.join(config.tmpFolder, `sin-${id}.webp`);
+    const outputPath = path.join(config.tmpFolder, `sout-${id}.png`);
+    fs.writeFileSync(inputPath, buffer);
+    const ff = spawn('ffmpeg', ['-y', '-i', inputPath, outputPath]);
+    let stderr = '';
+    ff.stderr.on('data', (d) => { stderr += d.toString(); });
+    ff.on('error', reject);
+    ff.on('close', (code) => {
+      try { fs.unlinkSync(inputPath); } catch (_) {}
+      if (code !== 0) {
+        return reject(new Error(`ffmpeg saiu com codigo ${code}: ${stderr.slice(-200)}`));
+      }
+      try {
+        const out = fs.readFileSync(outputPath);
+        fs.unlinkSync(outputPath);
+        resolve(out);
+      } catch (e) { reject(e); }
+    });
+  });
+}
 
 module.exports = {
   name: 'toimg',
@@ -20,7 +51,7 @@ module.exports = {
     await react('🖼️');
     try {
       const buffer = await downloadBuffer({ ...msg, message: quoted }, msg.key);
-      const png = await sharp(buffer).png().toBuffer();
+      const png = await webpToPng(buffer);
       await ctx.sock.sendMessage(
         ctx.jid,
         { image: png, caption: '🖼️ Aqui esta sua figurinha como imagem!' },

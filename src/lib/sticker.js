@@ -1,21 +1,54 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const sharp = require('sharp');
 const webpmux = require('node-webpmux');
 const config = require('../config');
 
 /**
- * Gera um buffer WebP estatico a partir de uma imagem (jpg/png/webp).
+ * Converte uma imagem (jpg/png/webp) em sticker WebP estatico.
+ * Usa ffmpeg pois ele esta disponivel tanto em desktop quanto Termux,
+ * evitando libs nativas pesadas como sharp.
  */
-async function imageToWebp(buffer) {
-  return sharp(buffer)
-    .resize(512, 512, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .webp({ quality: 80 })
-    .toBuffer();
+function imageToWebp(buffer) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(config.tmpFolder)) {
+      fs.mkdirSync(config.tmpFolder, { recursive: true });
+    }
+    const id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const inputPath = path.join(config.tmpFolder, `imgin-${id}`);
+    const outputPath = path.join(config.tmpFolder, `imgout-${id}.webp`);
+    fs.writeFileSync(inputPath, buffer);
+
+    const args = [
+      '-y',
+      '-i', inputPath,
+      '-vf',
+      "scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=white@0.0",
+      '-vcodec', 'libwebp',
+      '-lossless', '1',
+      '-q:v', '60',
+      '-preset', 'default',
+      '-an',
+      outputPath,
+    ];
+    const ff = spawn('ffmpeg', args);
+    let stderr = '';
+    ff.stderr.on('data', (d) => { stderr += d.toString(); });
+    ff.on('error', reject);
+    ff.on('close', (code) => {
+      try { fs.unlinkSync(inputPath); } catch (_) {}
+      if (code !== 0) {
+        return reject(new Error(`ffmpeg saiu com codigo ${code}: ${stderr.slice(-200)}`));
+      }
+      try {
+        const out = fs.readFileSync(outputPath);
+        fs.unlinkSync(outputPath);
+        resolve(out);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
 }
 
 /**
@@ -47,13 +80,13 @@ function videoToWebp(buffer) {
       outputPath,
     ];
     const ff = spawn('ffmpeg', args);
+    let stderr = '';
+    ff.stderr.on('data', (d) => { stderr += d.toString(); });
     ff.on('error', reject);
     ff.on('close', (code) => {
-      try {
-        fs.unlinkSync(inputPath);
-      } catch (_) {}
+      try { fs.unlinkSync(inputPath); } catch (_) {}
       if (code !== 0) {
-        return reject(new Error(`ffmpeg saiu com codigo ${code}`));
+        return reject(new Error(`ffmpeg saiu com codigo ${code}: ${stderr.slice(-200)}`));
       }
       try {
         const out = fs.readFileSync(outputPath);

@@ -51,6 +51,8 @@ O Kiryuu cria figurinhas (estáticas e animadas), baixa músicas e vídeos do Yo
 
 ## 🚀 Instalação
 
+> 📱 **Quer rodar pelo celular Android?** Veja o guia completo passo a passo: **[TERMUX.md](./TERMUX.md)**
+
 ### Pré-requisitos
 - **Node.js 18+** (recomendado 20 ou 22)
 - **FFmpeg** disponível no `PATH` (necessário para figurinhas animadas)
