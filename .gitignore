@@ -1,8 +1,0 @@
-node_modules/
-auth/
-sessions/
-.env
-*.log
-tmp/
-temp/
-.DS_Store
