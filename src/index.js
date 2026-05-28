@@ -27,15 +27,20 @@ async function start() {
   // Estado da sessao do WhatsApp
   const { state, saveCreds } = await useMultiFileAuthState(config.authFolder);
   const { version } = await fetchLatestBaileysVersion();
+  logger.info(`Usando Baileys WA v${version.join('.')}`);
 
   const sock = makeWASocket({
     version,
     auth: state,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Kiryuu'),
+    // Ubuntu/Chrome e mais aceito pelo WhatsApp atual que macOS
+    browser: Browsers.ubuntu('Chrome'),
     logger: pino({ level: 'silent' }),
     syncFullHistory: false,
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: true,
+    generateHighQualityLinkPreview: false,
+    // Garante que mensagens nao sejam re-enviadas como reuploadRequired
+    getMessage: async () => undefined,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -48,32 +53,44 @@ async function start() {
       qrcode.generate(qr, { small: true });
     }
 
+    if (connection === 'connecting') {
+      logger.info('Conectando ao WhatsApp...');
+    }
+
     if (connection === 'open') {
       logger.info(`${config.botName} conectado com sucesso!`);
+      logger.info(`Mande *${config.prefix}menu* no WhatsApp para testar.`);
     }
 
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
+      const reason = lastDisconnect?.error?.message || 'desconhecido';
       const shouldReconnect = code !== DisconnectReason.loggedOut;
-      logger.warn(`Conexao encerrada (codigo ${code}). Reconectar: ${shouldReconnect}`);
-      if (shouldReconnect) start();
-      else logger.error('Sessao deslogada. Apague a pasta auth/ e escaneie o QR de novo.');
+      logger.warn(`Conexao encerrada (codigo ${code} / ${reason}). Reconectar: ${shouldReconnect}`);
+      if (shouldReconnect) {
+        setTimeout(() => start(), 3000);
+      } else {
+        logger.error('Sessao deslogada. Apague a pasta auth/ e escaneie o QR de novo.');
+      }
     }
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
+    // Aceita tanto 'notify' (msg nova) quanto 'append' (msg que entrou no historico
+    // recente mas ainda merece resposta). Algumas versoes mandam append em vez
+    // de notify para mensagens proprias do dispositivo principal.
+    if (type !== 'notify' && type !== 'append') return;
     for (const msg of messages) {
       try {
         await handleMessage({ sock, msg, registry });
       } catch (err) {
-        logger.error({ err }, 'Erro no handler de mensagens');
+        logger.error(`Erro no handler de mensagens: ${err.message}\n${err.stack}`);
       }
     }
   });
 }
 
 start().catch((err) => {
-  logger.error({ err }, 'Falha fatal ao iniciar o bot');
+  logger.error(`Falha fatal ao iniciar o bot: ${err.message}\n${err.stack}`);
   process.exit(1);
 });
