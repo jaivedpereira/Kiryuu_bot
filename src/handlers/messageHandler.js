@@ -65,12 +65,22 @@ async function handleMessage({ sock, msg, registry }) {
     registry,
     reply: async (content) => {
       const payload = typeof content === 'string' ? { text: content } : content;
+      const destino = msg.key.remoteJid;
       try {
-        return await sock.sendMessage(msg.key.remoteJid, payload, { quoted: msg });
+        const sent = await sock.sendMessage(destino, payload, { quoted: msg });
+        logger.info(`Resposta enviada para ${destino} (id: ${sent?.key?.id || '?'})`);
+        return sent;
       } catch (err) {
         // Em chats com @lid, citar a mensagem pode falhar. Tenta sem citacao.
         logger.warn(`reply com quoted falhou (${err.message}); tentando sem citacao`);
-        return sock.sendMessage(msg.key.remoteJid, payload);
+        try {
+          const sent = await sock.sendMessage(destino, payload);
+          logger.info(`Resposta enviada (sem citacao) para ${destino} (id: ${sent?.key?.id || '?'})`);
+          return sent;
+        } catch (err2) {
+          logger.error(`Falha total ao enviar resposta para ${destino}: ${err2.message}`);
+          throw err2;
+        }
       }
     },
     react: safeReact,

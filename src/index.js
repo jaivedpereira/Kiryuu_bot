@@ -1,5 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+// Carrega o .env ANTES de qualquer config que leia process.env
+require('./lib/env');
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -15,6 +17,8 @@ const logger = require('./lib/logger');
 const { loadCommands } = require('./handlers/commandLoader');
 const { handleMessage } = require('./handlers/messageHandler');
 
+let pairingSolicitado = false;
+
 async function start() {
   // Garante que pastas existem
   for (const dir of [config.authFolder, config.tmpFolder]) {
@@ -29,26 +33,57 @@ async function start() {
   const { version } = await fetchLatestBaileysVersion();
   logger.info(`Usando Baileys WA v${version.join('.')}`);
 
+  // Decide o metodo de login: codigo de pareamento (se houver numero) ou QR.
+  const usarPairing = config.usePairingCode && !state.creds.registered;
+  if (usarPairing && !config.botNumber) {
+    logger.error(
+      'USE_PAIRING_CODE ativado mas BOT_NUMBER esta vazio. Preencha o numero no .env (ex: 5582987554870).',
+    );
+  }
+
   const sock = makeWASocket({
     version,
     auth: state,
+    // Nao imprime QR automaticamente; cuidamos disso manualmente abaixo.
     printQRInTerminal: false,
-    // Ubuntu/Chrome e mais aceito pelo WhatsApp atual que macOS
     browser: Browsers.ubuntu('Chrome'),
     logger: pino({ level: 'silent' }),
     syncFullHistory: false,
     markOnlineOnConnect: true,
     generateHighQualityLinkPreview: false,
-    // Garante que mensagens nao sejam re-enviadas como reuploadRequired
     getMessage: async () => undefined,
   });
 
   sock.ev.on('creds.update', saveCreds);
 
+  // ---- Login por CODIGO DE PAREAMENTO ----
+  // Precisa ser solicitado logo apos criar o socket, quando ainda nao registrado.
+  if (usarPairing && config.botNumber && !pairingSolicitado) {
+    pairingSolicitado = true;
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode(config.botNumber);
+        const formatado = code?.match(/.{1,4}/g)?.join('-') || code;
+        logger.info('==================================================');
+        logger.info(`  CODIGO DE PAREAMENTO: ${formatado}`);
+        logger.info('==================================================');
+        logger.info('No WhatsApp do numero do bot:');
+        logger.info('  1) Configuracoes > Aparelhos conectados');
+        logger.info('  2) Conectar um aparelho');
+        logger.info('  3) "Conectar com numero de telefone"');
+        logger.info(`  4) Digite o codigo acima (${formatado})`);
+      } catch (err) {
+        logger.error(`Falha ao gerar codigo de pareamento: ${err.message}`);
+        logger.error('Verifique se BOT_NUMBER esta correto (so digitos, com DDI). Ex: 5582987554870');
+      }
+    }, 3000);
+  }
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr) {
+    // Mostra QR apenas se NAO estiver usando pareamento
+    if (qr && !config.usePairingCode) {
       logger.info('Escaneie o QR code abaixo no WhatsApp do celular:');
       qrcode.generate(qr, { small: true });
     }
@@ -59,7 +94,8 @@ async function start() {
 
     if (connection === 'open') {
       logger.info(`${config.botName} conectado com sucesso!`);
-      logger.info(`Mande *${config.prefix}menu* no WhatsApp para testar.`);
+      logger.info(`Numero conectado: ${sock.user?.id || 'desconhecido'}`);
+      logger.info(`Mande ${config.prefix}menu no WhatsApp para testar.`);
     }
 
     if (connection === 'close') {
@@ -70,15 +106,12 @@ async function start() {
       if (shouldReconnect) {
         setTimeout(() => start(), 3000);
       } else {
-        logger.error('Sessao deslogada. Apague a pasta auth/ e escaneie o QR de novo.');
+        logger.error('Sessao deslogada. Apague a pasta auth/ e gere um novo codigo/QR.');
       }
     }
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    // Aceita tanto 'notify' (msg nova) quanto 'append' (msg que entrou no historico
-    // recente mas ainda merece resposta). Algumas versoes mandam append em vez
-    // de notify para mensagens proprias do dispositivo principal.
     if (type !== 'notify' && type !== 'append') return;
     for (const msg of messages) {
       try {

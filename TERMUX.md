@@ -105,45 +105,75 @@ npm install --legacy-peer-deps
 
 ---
 
-## 7️⃣ Iniciando o bot
+## 7️⃣ Configurando o número do bot (login por código)
+
+Em vez de escanear QR Code (que às vezes falha quando é no mesmo celular), o Kiryuu suporta **login por código de pareamento** — você digita um código no WhatsApp. É mais confiável.
+
+Crie o arquivo de configuração e coloque o número do bot:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+No `nano`, ache a linha `BOT_NUMBER=` e coloque o número do WhatsApp do bot, **só os dígitos, com código do país (55) e DDD, sem `+`, espaços ou traços**. Exemplo para um número de Alagoas (DDD 82):
+
+```
+BOT_NUMBER=5582987554870
+```
+
+Para salvar no nano: `Ctrl + O`, depois `Enter`, depois `Ctrl + X` para sair.
+
+> 💡 Não tem o `nano`? Instala com `pkg install -y nano`. Ou use o `vi` se preferir.
+
+---
+
+## 8️⃣ Iniciando o bot
 
 ```bash
 npm start
 ```
 
-O Termux vai mostrar um **QR Code grandão** feito de quadradinhos. Tipo isso:
+### Se você preencheu o BOT_NUMBER (recomendado):
+O Termux vai mostrar um **código de pareamento** assim:
 
 ```
-█▀▀▀▀▀█ ▀▀▄▀█ █▀▀▀▀▀█
-█ ███ █ ▀ ▀█▀ █ ███ █
-█ ▀▀▀ █ ▄▀▀█▄ █ ▀▀▀ █
-...
+==================================================
+  CODIGO DE PAREAMENTO: ABCD-1234
+==================================================
 ```
+
+No **WhatsApp do número do bot**:
+1. Abra o **WhatsApp**
+2. **Configurações** ⚙️ > **Aparelhos conectados**
+3. **Conectar um aparelho**
+4. Toque em **"Conectar com número de telefone"** (link embaixo do QR)
+5. **Digite o código** que apareceu no Termux (ex: `ABCD-1234`)
+
+### Se você NÃO preencheu o BOT_NUMBER:
+Vai aparecer um **QR Code** no Termux. Aí:
+1. WhatsApp > **Configurações** ⚙️ > **Aparelhos conectados**
+2. **Conectar um aparelho**
+3. **Escaneie o QR Code** do Termux
 
 ---
 
-## 8️⃣ Conectando o número do WhatsApp
-
-**No celular onde está o número do bot** (pode ser outro celular, ou o mesmo se você tiver dois WhatsApps):
-
-1. Abre o **WhatsApp**
-2. Vai em **Configurações** (engrenagem ⚙️)
-3. Toca em **Aparelhos conectados**
-4. Toca em **Conectar um aparelho**
-5. **Escaneia o QR Code** que apareceu no Termux
-
-> 💡 Se for usar o mesmo celular, dá pra tirar print do QR ou abrir o Termux em uma tela e o WhatsApp em outra (modo dividido/multitarefa).
+## 9️⃣ Confirmando a conexão
 
 Quando conectar, vai aparecer no Termux:
 ```
+[INFO] Carregados 26 comandos (...)
 [INFO] Kiryuu conectado com sucesso!
+[INFO] Numero conectado: 5582987554870:xx@s.whatsapp.net
 ```
+
+> ⚠️ Se aparecer `Carregados 21 comandos` ou erros vermelhos `ERROR: Falha ao carregar`, você está com a versão antiga. Atualize com `git pull` (veja a seção de troubleshooting).
 
 🎉 **Pronto! O bot tá funcionando!**
 
 ---
 
-## 9️⃣ Testando
+## 🔟 Testando
 
 Manda uma mensagem do **outro WhatsApp** pro número do bot (ou adiciona ele em um grupo) e digita:
 
@@ -158,6 +188,7 @@ Testa também:
 - `!piada` — pra dar risada
 - `!sticker` — responde uma foto com esse comando
 - `!musica engenheiros do hawaii` — baixa música do YouTube
+
 
 ---
 
@@ -246,7 +277,7 @@ Aumente o terminal: aperte os botões de volume + um dedo na tela pra abrir o me
 pkg update -y && pkg upgrade -y
 
 # 2. Instala dependencias
-pkg install -y nodejs git ffmpeg python
+pkg install -y nodejs git ffmpeg python nano
 
 # 3. Permissoes
 termux-setup-storage
@@ -259,7 +290,11 @@ cd Kiryuu_bot
 # 5. Instala
 npm install
 
-# 6. Roda (escaneia QR no WhatsApp)
+# 6. Configura o numero do bot (recomendado)
+cp .env.example .env
+nano .env     # coloque BOT_NUMBER=5582987554870 (seu numero, so digitos)
+
+# 7. Roda (digite o codigo de pareamento no WhatsApp)
 termux-wake-lock
 npm start
 ```
