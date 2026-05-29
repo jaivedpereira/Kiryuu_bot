@@ -250,8 +250,33 @@ chmod -R u+w ~/Kiryuu_bot
 - Fecha tudo e roda só `npm install` de novo
 - Se travar, tenta: `npm install --no-optional --legacy-peer-deps`
 
+### Erro: `codigo 401 / Connection Failure` + `Sessao deslogada` logo após o código de pareamento
+Esse é o erro mais comum no pareamento. Acontece quando a pasta `auth/` ficou
+"suja" de uma tentativa anterior que não foi concluída. A partir da versão atual,
+o bot **limpa a pasta `auth/` sozinho** e gera um código novo. Mas se você está
+preso nesse loop, faça a limpeza manual:
+
+```bash
+cd ~/Kiryuu_bot
+rm -rf auth
+npm start
+```
+
+E aí, **assim que o código aparecer, digite IMEDIATAMENTE** no WhatsApp (o código
+expira rápido). Dicas pra não falhar:
+- Deixe o WhatsApp já aberto em **Aparelhos conectados > Conectar um aparelho >
+  "Conectar com número de telefone"** ANTES de rodar o `npm start`.
+- Confira o `BOT_NUMBER` no `.env` — tem que ser **só dígitos, com 55 + DDD**.
+  Ex: `558287554870`. Sem `+`, espaço ou traço.
+- Se falhar várias vezes seguidas, o WhatsApp pode bloquear o pareamento por uns
+  minutos. **Espere uns 5-10 minutos** e tente de novo.
+
+> 💡 Se o pareamento por código insistir em falhar, tente o método **QR Code**:
+> deixe o `BOT_NUMBER` vazio no `.env`, rode `rm -rf auth && npm start` e escaneie
+> o QR que vai aparecer.
+
 ### Erro: `Connection Closed` ou `Sessao deslogada`
-- Apague a pasta de sessão e escaneie o QR de novo:
+- Apague a pasta de sessão e gere um novo código/QR:
   ```bash
   rm -rf auth
   npm start
