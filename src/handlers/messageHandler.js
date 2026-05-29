@@ -63,9 +63,15 @@ async function handleMessage({ sock, msg, registry }) {
     messageType: getMessageType(msg),
     prefix: config.prefix,
     registry,
-    reply: (content) => {
+    reply: async (content) => {
       const payload = typeof content === 'string' ? { text: content } : content;
-      return sock.sendMessage(msg.key.remoteJid, payload, { quoted: msg });
+      try {
+        return await sock.sendMessage(msg.key.remoteJid, payload, { quoted: msg });
+      } catch (err) {
+        // Em chats com @lid, citar a mensagem pode falhar. Tenta sem citacao.
+        logger.warn(`reply com quoted falhou (${err.message}); tentando sem citacao`);
+        return sock.sendMessage(msg.key.remoteJid, payload);
+      }
     },
     react: safeReact,
   };

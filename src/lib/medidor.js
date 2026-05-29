@@ -1,4 +1,4 @@
-const { porcentagem } = require('../../lib/random');
+const { porcentagem } = require('./random');
 
 function criarComando(nome, aliases, titulo, emoji) {
   return {
